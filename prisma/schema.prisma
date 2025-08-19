@@ -1,0 +1,47 @@
+datasource db {
+  provider = "postgresql" 
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  password    String
+  totalQuota  Int      @default(500000000) // bytes, 500MB
+  usedSpace   Int      @default(0)
+  files       File[]
+  folders     Folder[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Folder {
+  id          String   @id @default(cuid())
+  name        String
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String
+  parent      Folder?  @relation("FolderHierarchy", fields: [parentId], references: [id])
+  parentId    String?
+  children    Folder[] @relation("FolderHierarchy")
+  files       File[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model File {
+  id          String   @id @default(cuid())
+  name        String
+  size        Int      // bytes
+  mimeType    String?
+  storagePath String   
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String
+  folder      Folder?  @relation(fields: [folderId], references: [id])
+  folderId    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
