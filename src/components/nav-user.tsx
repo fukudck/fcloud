@@ -2,7 +2,7 @@
 
 import { BadgeCheck, Bell, ChevronsUpDown, CreditCard, HardDrive, LogOut, Moon, Sparkles, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
-
+import { signOut } from "next-auth/react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -114,7 +114,7 @@ export function NavUser({
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={async ()=> await signOut({ redirectTo: "/login" })}>
               <LogOut />
               Log out
             </DropdownMenuItem>
