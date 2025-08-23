@@ -18,28 +18,41 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: "Password", type: "password" },
       },
       authorize: async (credentials) => {
-        console.log("Credentials nhận được:", credentials)
         const parsed = await signInSchema.safeParseAsync(credentials)
-        if (!parsed.success) {
-          return null
-        }
-        const { email, password } = parsed.data
+        if (!parsed.success) return null
 
+        const { email, password } = parsed.data
         const user = await db.user.findUnique({ where: { email } })
         if (!user) return null
 
         const ok = await bcrypt.compare(password, user.password)
         if (!ok) return null
 
-
         return {
           id: user.id,
           email: user.email,
-          quota: user.totalQuota,
-          used: user.usedSpace,
         }
       },
     }),
   ],
   session: { strategy: "jwt" },
+
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.sub = user.id 
+        token.email = user.email
+      }
+      return token
+    },
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.sub as string
+        session.user.email = token.email as string
+      }
+      return session
+    },
+  },
 })
+
+

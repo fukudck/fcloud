@@ -1,6 +1,7 @@
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import type React from "react"
+import { useRouter } from "next/navigation"
 
 import {
   Folder,
@@ -23,6 +24,7 @@ import {
   Check,
   Globe,
   Lock,
+  Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -32,6 +34,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
+import useSWR from "swr"
+const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
 interface FileItem {
   id: string
@@ -45,87 +49,25 @@ interface FileItem {
   lastModified?: string
 }
 
-const mockFiles: FileItem[] = [
-  {
-    id: "1",
-    name: "Project Files",
-    type: "folder",
-    itemCount: 12,
-    dateUploaded: "2024-01-15",
-    isShared: true,
-  },
-  {
-    id: "2",
-    name: "report.pdf",
-    type: "file",
-    size: "2.3 MB",
-    mimeType: "application/pdf",
-    dateUploaded: "2024-01-20",
-    isShared: false,
-    lastModified: "2024-01-20 14:30",
-  },
-  {
-    id: "3",
-    name: "presentation.pptx",
-    type: "file",
-    size: "4.5 MB",
-    mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    dateUploaded: "2024-01-18",
-    isShared: true,
-    lastModified: "2024-01-19 09:15",
-  },
-  {
-    id: "4",
-    name: "spreadsheet.xlsx",
-    type: "file",
-    size: "1.7 MB",
-    mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    dateUploaded: "2024-01-17",
-    isShared: false,
-    lastModified: "2024-01-17 16:45",
-  },
-  {
-    id: "5",
-    name: "Design Assets",
-    type: "folder",
-    itemCount: 24,
-    dateUploaded: "2024-01-10",
-    isShared: true,
-  },
-  {
-    id: "6",
-    name: "image.jpg",
-    type: "file",
-    size: "1.2 MB",
-    mimeType: "image/jpeg",
-    dateUploaded: "2024-01-22",
-    isShared: false,
-    lastModified: "2024-01-22 11:20",
-  },
-  {
-    id: "7",
-    name: "document.docx",
-    type: "file",
-    size: "3.4 MB",
-    mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    dateUploaded: "2024-01-16",
-    isShared: true,
-    lastModified: "2024-01-21 13:10",
-  },
-  {
-    id: "8",
-    name: "Archives",
-    type: "folder",
-    itemCount: 8,
-    dateUploaded: "2024-01-05",
-    isShared: false,
-  },
-]
+
 
 type SortField = "name" | "type" | "size" | "modified" | "shared"
 type SortDirection = "asc" | "desc"
 
-export default function FileManager() {
+interface FileManagerProps {
+  currentFolderId: string | null
+}
+
+export default function FileManager({ currentFolderId }: FileManagerProps) {
+  const { data, error, isLoading } = useSWR<FileItem[]>(
+    `/api/files${currentFolderId ? `?folderId=${currentFolderId}` : ""}`,
+    fetcher
+  )
+  
+  const mockFiles: FileItem[] = data ?? []
+  const router = useRouter()
+  // const [isLoading, setIsLoading] = useState(true)
+  const [previewLoading, setPreviewLoading] = useState(false)
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
   const [folderDialogOpen, setFolderDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -141,6 +83,13 @@ export default function FileManager() {
   const [sortField, setSortField] = useState<SortField>("name")
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
   const [uploadFiles, setUploadFiles] = useState<File[]>([])
+
+  // useEffect(() => {
+  //   const timer = setTimeout(() => {
+  //     setIsLoading(false)
+  //   }, 1500)
+  //   return () => clearTimeout(timer)
+  // }, [])
 
   const getMimeTypeDisplay = (mimeType?: string) => {
     if (!mimeType) return ""
@@ -167,16 +116,32 @@ export default function FileManager() {
 
   const handleFileClick = (file: FileItem) => {
     if (file.type === "folder") {
-      console.log("[v0] Opening folder:", file.name)
+      router.push(`/dashboard/${file.id}`)
       return
     }
 
     setPreviewFile(file)
     setPreviewDialogOpen(true)
+    setPreviewLoading(true)
+
+    setTimeout(() => {
+      setPreviewLoading(false)
+    }, 800)
   }
 
   const renderPreviewContent = () => {
     if (!previewFile || !previewFile.mimeType) return null
+
+    if (previewLoading) {
+      return (
+        <div className="flex items-center justify-center p-12 bg-muted/20 rounded-lg">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Loading preview...</p>
+          </div>
+        </div>
+      )
+    }
 
     if (canPreviewInBrowser(previewFile.mimeType)) {
       if (previewFile.mimeType.startsWith("image/")) {
@@ -275,7 +240,7 @@ export default function FileManager() {
   }
 
   const handleUploadConfirm = () => {
-    console.log("[v0] Uploading files:", uploadFiles)
+    console.log(" Uploading files:", uploadFiles)
     setUploadFiles([])
     setUploadDialogOpen(false)
   }
@@ -290,7 +255,7 @@ export default function FileManager() {
 
   const createFolder = () => {
     if (newFolderName.trim()) {
-      console.log("[v0] Creating folder:", newFolderName)
+      console.log("Creating folder:", newFolderName)
       setNewFolderName("")
       setFolderDialogOpen(false)
     }
@@ -317,7 +282,7 @@ export default function FileManager() {
   }
 
   const confirmDelete = () => {
-    console.log("[v0] Deleting files:", selectedFiles)
+    console.log("Deleting files:", selectedFiles)
     setSelectedFiles([])
     setDeleteDialogOpen(false)
   }
@@ -397,10 +362,28 @@ export default function FileManager() {
 
   const handleShareSave = () => {
     if (shareFile) {
-      console.log("[v0] Updating share settings for:", shareFile.name, "to:", shareType)
-      // Update the file's share status in your data
+      console.log("Updating share settings for:", shareFile.name, "to:", shareType)
       setShareDialogOpen(false)
     }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 p-6">
+        <div className="flex items-center justify-center h-96">
+          <div className="flex flex-col items-center gap-6">
+            <div className="relative">
+              <Loader2 className="h-12 w-12 animate-spin text-primary" />
+              <div className="absolute inset-0 rounded-full border-2 border-primary/20"></div>
+            </div>
+            <div className="text-center space-y-2">
+              <h3 className="text-lg font-semibold">Loading your files...</h3>
+              <p className="text-sm text-muted-foreground">Please wait while we fetch your data</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -586,7 +569,15 @@ export default function FileManager() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={previewDialogOpen} onOpenChange={setPreviewDialogOpen}>
+      <Dialog
+        open={previewDialogOpen}
+        onOpenChange={(open) => {
+          setPreviewDialogOpen(open)
+          if (!open) {
+            setPreviewLoading(false)
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-4xl max-h-[80vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -781,77 +772,95 @@ export default function FileManager() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {getSortedFiles().map((item) => (
-              <TableRow key={item.id} className="hover:bg-muted/50">
-                <TableCell className="text-center">
-                  <div className="flex justify-center">
-                    <Checkbox
-                      checked={selectedFiles.includes(item.id)}
-                      onCheckedChange={(checked) => handleSelectFile(item.id, checked as boolean)}
-                      aria-label={`Select ${item.name}`}
-                    />
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div
-                    className="flex items-center gap-3 cursor-pointer hover:text-primary transition-colors"
-                    onClick={() => handleFileClick(item)}
-                  >
-                    {item.type === "folder" ? (
-                      <Folder className="h-5 w-5 text-blue-500 flex-shrink-0" />
-                    ) : (
-                      <File className="h-5 w-5 text-gray-500 flex-shrink-0" />
-                    )}
-                    <span className="font-medium">{item.name}</span>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  {item.mimeType && (
-                    <Badge variant="secondary" className="text-xs">
-                      {getMimeTypeDisplay(item.mimeType)}
-                    </Badge>
-                  )}
-                  {item.type === "folder" && (
-                    <Badge variant="outline" className="text-xs">
-                      Folder
-                    </Badge>
-                  )}
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {item.type === "folder" ? `${item.itemCount} items` : item.size}
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {item.dateUploaded && (
-                    <div className="flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      {new Date(item.dateUploaded).toLocaleDateString()}
+            {getSortedFiles().length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="h-96">
+                  <div className="flex flex-col items-center justify-center h-full space-y-6">
+                    <div className="w-24 h-24 bg-muted/30 rounded-full flex items-center justify-center">
+                      <Folder className="h-12 w-12 text-muted-foreground/50" />
                     </div>
-                  )}
-                </TableCell>
-                <TableCell className="w-16">
-                  <div className="flex justify-start">
-                    {item.isShared && (
-                      <Badge variant="secondary" className="text-xs">
-                        <Share2 className="h-3 w-3 mr-1" />
-                        Shared
-                      </Badge>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="sm">
-                      <Download className="h-4 w-4" />
-                    </Button>
-                    {item.type === "file" && (
-                      <Button variant="ghost" size="sm" onClick={() => handleShareClick(item)}>
-                        <Share2 className="h-4 w-4" />
-                      </Button>
-                    )}
+                    <div className="text-center space-y-2">
+                      <h3 className="text-lg font-semibold text-muted-foreground">This folder is empty</h3>
+                      <p className="text-sm text-muted-foreground max-w-sm">
+                        Get started by uploading files or creating a new folder
+                      </p>
+                    </div>
                   </div>
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              getSortedFiles().map((item) => (
+                <TableRow key={item.id} className="hover:bg-muted/50">
+                  <TableCell className="text-center">
+                    <div className="flex justify-center">
+                      <Checkbox
+                        checked={selectedFiles.includes(item.id)}
+                        onCheckedChange={(checked) => handleSelectFile(item.id, checked as boolean)}
+                        aria-label={`Select ${item.name}`}
+                      />
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div
+                      className="flex items-center gap-3 cursor-pointer hover:text-primary transition-colors"
+                      onClick={() => handleFileClick(item)}
+                    >
+                      {item.type === "folder" ? (
+                        <Folder className="h-5 w-5 text-blue-500 flex-shrink-0" />
+                      ) : (
+                        <File className="h-5 w-5 text-gray-500 flex-shrink-0" />
+                      )}
+                      <span className="font-medium">{item.name}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {item.mimeType && (
+                      <Badge variant="secondary" className="text-xs">
+                        {getMimeTypeDisplay(item.mimeType)}
+                      </Badge>
+                    )}
+                    {item.type === "folder" && (
+                      <Badge variant="outline" className="text-xs">
+                        Folder
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {item.type === "folder" ? `${item.itemCount} items` : item.size}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {item.dateUploaded && (
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {new Date(item.dateUploaded).toLocaleDateString()}
+                      </div>
+                    )}
+                  </TableCell>
+                  <TableCell className="w-16">
+                    <div className="flex justify-start">
+                      {item.isShared && (
+                        <Badge variant="secondary" className="text-xs">
+                          <Share2 className="h-3 w-3 mr-1" />
+                          Shared
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="sm">
+                        <Download className="h-4 w-4" />
+                      </Button>
+                      {item.type === "file" && (
+                        <Button variant="ghost" size="sm" onClick={() => handleShareClick(item)}>
+                          <Share2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </div>
