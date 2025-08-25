@@ -29,7 +29,7 @@ model Folder {
   name        String
   user        User     @relation(fields: [userId], references: [id])
   userId      String
-  parent      Folder?  @relation("FolderHierarchy", fields: [parentId], references: [id])
+  parent      Folder?  @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
   parentId    String?
   children    Folder[] @relation("FolderHierarchy")
   files       File[]
@@ -49,4 +49,5 @@ model File {
   folderId    String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  shareable   Boolean  @default(false)
 }

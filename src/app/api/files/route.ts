@@ -53,7 +53,7 @@ export async function GET(req: Request) {
       mimeType: file.mimeType,
       dateUploaded: file.createdAt.toISOString(),
       lastModified: file.updatedAt.toISOString(),
-      isShared: false,
+      isShared: file.shareable,
     })),
   ]
 

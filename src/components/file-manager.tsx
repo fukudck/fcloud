@@ -25,7 +25,10 @@ import {
   Globe,
   Lock,
   Loader2,
+  MoreHorizontal,
+  Edit3,
 } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
@@ -34,7 +37,14 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
-import useSWR from "swr"
+import useSWR, { mutate } from "swr"
+
+import { genUploader } from "uploadthing/client";
+
+import type { ourFileRouter } from "@/app/api/uploadthing/core"
+
+export const { uploadFiles } = genUploader<typeof ourFileRouter>();
+
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
 interface FileItem {
@@ -47,6 +57,7 @@ interface FileItem {
   dateUploaded?: string
   isShared?: boolean
   lastModified?: string
+  parentId?: string | null
 }
 
 
@@ -67,6 +78,9 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
   const mockFiles: FileItem[] = data ?? []
   const router = useRouter()
   // const [isLoading, setIsLoading] = useState(true)
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false)
+  const [renameFile, setRenameFile] = useState<FileItem | null>(null)
+  const [newFileName, setNewFileName] = useState("")
   const [previewLoading, setPreviewLoading] = useState(false)
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
   const [folderDialogOpen, setFolderDialogOpen] = useState(false)
@@ -79,10 +93,10 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null)
   const [newFolderName, setNewFolderName] = useState("")
   const [dragOver, setDragOver] = useState(false)
-  const [selectedFiles, setSelectedFiles] = useState<string[]>([])
+  const [selectedFiles, setSelectedFiles] = useState<FileItem[]>([])
   const [sortField, setSortField] = useState<SortField>("name")
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
-  const [uploadFiles, setUploadFiles] = useState<File[]>([])
+  const [filesToUpload, setFilesToUpload] = useState<File[]>([])
 
   // useEffect(() => {
   //   const timer = setTimeout(() => {
@@ -224,26 +238,42 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
     e.preventDefault()
     setDragOver(false)
     const files = Array.from(e.dataTransfer.files)
-    setUploadFiles((prev) => [...prev, ...files])
+    setFilesToUpload((prev) => [...prev, ...files])
   }
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (files) {
       const fileArray = Array.from(files)
-      setUploadFiles((prev) => [...prev, ...fileArray])
+      setFilesToUpload((prev) => [...prev, ...fileArray])
     }
   }
 
   const removeUploadFile = (index: number) => {
-    setUploadFiles((prev) => prev.filter((_, i) => i !== index))
+    setFilesToUpload((prev) => prev.filter((_, i) => i !== index))
   }
 
-  const handleUploadConfirm = () => {
-    console.log(" Uploading files:", uploadFiles)
-    setUploadFiles([])
-    setUploadDialogOpen(false)
-  }
+
+  const handleUploadConfirm = async () => {
+    if (filesToUpload.length === 0) return;
+  
+    try {
+      const uploaded = await uploadFiles("fileUploader", {
+        files: filesToUpload,
+        input: { folderId: currentFolderId ?? undefined },
+        onUploadProgress: (p) => console.log("progress", p),
+      });
+  
+      console.log("Uploaded result:", uploaded);
+  
+      setFilesToUpload([]);
+      setUploadDialogOpen(false);
+      mutate(`/api/files?folderId=${currentFolderId}`);
+    } catch (err: any) {
+      console.error("Upload failed:", err);
+    }
+  };
+  
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return "0 Bytes"
@@ -253,25 +283,50 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
     return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
   }
 
-  const createFolder = () => {
-    if (newFolderName.trim()) {
-      console.log("Creating folder:", newFolderName)
-      setNewFolderName("")
-      setFolderDialogOpen(false)
+  const createFolder = async () => {
+    if (!newFolderName.trim()) return;
+  
+    console.log("Creating folder:", newFolderName);
+  
+    try {
+      const res = await fetch("/api/folders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newFolderName,
+          parentId: currentFolderId || null, // 👈 nếu bạn đang trong 1 folder
+        }),
+      });
+  
+      if (!res.ok) {
+        throw new Error("Failed to create folder");
+      }
+  
+      const folder = await res.json();
+      console.log("✅ Folder created:", folder);
+  
+      mutate(`/api/files?folderId=${currentFolderId}`);
+  
+    } catch (err) {
+      console.error("Error creating folder:", err);
+    } finally {
+      setNewFolderName("");
+      setFolderDialogOpen(false);
     }
-  }
+  };
+  
 
-  const handleSelectFile = (fileId: string, checked: boolean) => {
+  const handleSelectFile = (file: FileItem, checked: boolean) => {
     if (checked) {
-      setSelectedFiles((prev) => [...prev, fileId])
+      setSelectedFiles((prev) => [...prev, file])
     } else {
-      setSelectedFiles((prev) => prev.filter((id) => id !== fileId))
+      setSelectedFiles((prev) => prev.filter((selectedFile) => selectedFile.id !== file.id))
     }
   }
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedFiles(mockFiles.map((file) => file.id))
+      setSelectedFiles(getCurrentFolderFiles())
     } else {
       setSelectedFiles([])
     }
@@ -281,14 +336,29 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
     setDeleteDialogOpen(true)
   }
 
-  const confirmDelete = () => {
-    console.log("Deleting files:", selectedFiles)
-    setSelectedFiles([])
-    setDeleteDialogOpen(false)
-  }
+  const confirmDelete = async () => {
+    try {
+      for (const item of selectedFiles) {
+        await fetch(`/api/delete/${item.id}?type=${item.type}`, {
+          method: "DELETE",
+        });
+      }
+  
+      console.log("Deleted items:", selectedFiles);
+  
+
+      setSelectedFiles([]);
+      setDeleteDialogOpen(false);
+  
+      mutate(`/api/files?folderId=${currentFolderId}`);
+    } catch (error) {
+      console.error("Error deleting:", error);
+    }
+  };
+  
 
   const getSelectedFileNames = () => {
-    return mockFiles.filter((file) => selectedFiles.includes(file.id)).map((file) => file.name)
+    return selectedFiles.map((file) => file.name)
   }
 
   const handleSort = (field: SortField) => {
@@ -298,6 +368,15 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
       setSortField(field)
       setSortDirection("asc")
     }
+  }
+
+  const getCurrentFolderFiles = () => {
+    return mockFiles.filter((file) => {
+      if (currentFolderId === null) {
+        return !file.parentId || file.parentId === null
+      }
+      return file.parentId === currentFolderId
+    })
   }
 
   const getSortedFiles = () => {
@@ -360,12 +439,82 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
     }
   }
 
-  const handleShareSave = () => {
-    if (shareFile) {
-      console.log("Updating share settings for:", shareFile.name, "to:", shareType)
+  const handleShareSave = async () => {
+    if (!shareFile) return
+  
+    let isShared;
+    
+    if (shareType === "public") {
+      isShared = true;
+    } else {
+      isShared = false;
+    }
+  
+    try {
+      const res = await fetch(`/api/files/${shareFile.id}/share`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ shareable: isShared }),
+      })
+  
+      if (!res.ok) throw new Error("Failed to update sharing")
+  
+      const updatedFile = await res.json()
+      console.log("Updated file:", updatedFile)
+  
+
+      mutate(`/api/files?folderId=${currentFolderId}`)
+  
       setShareDialogOpen(false)
+    } catch (err) {
+      console.error(err)
     }
   }
+  
+
+  const handleRenameClick = (file: FileItem) => {
+    setRenameFile(file)
+    setNewFileName(file.name)
+    setRenameDialogOpen(true)
+  }
+
+  const handleRenameConfirm = async () => {
+    if (!renameFile || !newFileName.trim()) return;
+  
+    try {
+      const res = await fetch(`/api/update/${renameFile.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newFileName.trim(),
+          type: renameFile.type, 
+        }),
+      });
+  
+      if (!res.ok) {
+        throw new Error("Failed to update item");
+      }
+  
+      const updated = await res.json();
+      console.log("Item renamed:", updated);
+  
+      mutate(`/api/files?folderId=${currentFolderId}`)
+    } catch (err) {
+      console.error("Error renaming item:", err);
+    } finally {
+      setRenameDialogOpen(false);
+      setRenameFile(null);
+      setNewFileName("");
+    }
+  };
+  
+
+  const handleDownloadClick = (file: FileItem) => {
+    console.log("Downloading file:", file.name)
+  }
+
 
   if (isLoading) {
     return (
@@ -438,21 +587,21 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
                   </div>
                 </div>
 
-                {uploadFiles.length > 0 && (
+                {filesToUpload.length > 0 && (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <h4 className="font-medium">Selected Files ({uploadFiles.length})</h4>
+                      <h4 className="font-medium">Selected Files ({filesToUpload.length})</h4>
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => setUploadFiles([])}
+                        onClick={() => setFilesToUpload([])}
                         className="text-muted-foreground hover:text-foreground"
                       >
                         Clear All
                       </Button>
                     </div>
                     <div className="max-h-48 overflow-y-auto space-y-2 border rounded-lg p-3 bg-muted/20">
-                      {uploadFiles.map((file, index) => (
+                      {filesToUpload.map((file, index) => (
                         <div
                           key={index}
                           className="flex items-center justify-between p-3 bg-background rounded-lg border"
@@ -483,14 +632,14 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
                   variant="outline"
                   onClick={() => {
                     setUploadDialogOpen(false)
-                    setUploadFiles([])
+                    setFilesToUpload([])
                   }}
                 >
                   Cancel
                 </Button>
-                <Button onClick={handleUploadConfirm} disabled={uploadFiles.length === 0} className="min-w-24">
+                <Button onClick={handleUploadConfirm} disabled={filesToUpload.length === 0} className="min-w-24">
                   <Upload className="h-4 w-4 mr-2" />
-                  Upload {uploadFiles.length > 0 && `(${uploadFiles.length})`}
+                  Upload {filesToUpload.length > 0 && `(${filesToUpload.length})`}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -709,6 +858,44 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit3 className="h-5 w-5" />
+              Rename {renameFile?.type === "folder" ? "Folder" : "File"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
+              {renameFile?.type === "folder" ? (
+                <Folder className="h-5 w-5 text-blue-500" />
+              ) : (
+                <File className="h-5 w-5 text-muted-foreground" />
+              )}
+              <span className="font-medium">{renameFile?.name}</span>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-name">New name</Label>
+              <Input
+                id="new-name"
+                value={newFileName}
+                onChange={(e) => setNewFileName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleRenameConfirm()}
+                placeholder="Enter new name"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleRenameConfirm} disabled={!newFileName.trim()}>
+              Rename
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="border rounded-lg">
         <Table>
@@ -717,7 +904,9 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
               <TableHead className="w-12 text-center">
                 <div className="flex justify-center">
                   <Checkbox
-                    checked={selectedFiles.length === mockFiles.length}
+                    checked={
+                      selectedFiles.length === getCurrentFolderFiles().length && getCurrentFolderFiles().length > 0
+                    }
                     onCheckedChange={handleSelectAll}
                     aria-label="Select all files"
                   />
@@ -794,8 +983,8 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
                   <TableCell className="text-center">
                     <div className="flex justify-center">
                       <Checkbox
-                        checked={selectedFiles.includes(item.id)}
-                        onCheckedChange={(checked) => handleSelectFile(item.id, checked as boolean)}
+                        checked={selectedFiles.some((selectedFile) => selectedFile.id === item.id)}
+                        onCheckedChange={(checked) => handleSelectFile(item, checked as boolean)}
                         aria-label={`Select ${item.name}`}
                       />
                     </div>
@@ -847,16 +1036,29 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="sm">
-                        <Download className="h-4 w-4" />
-                      </Button>
-                      {item.type === "file" && (
-                        <Button variant="ghost" size="sm" onClick={() => handleShareClick(item)}>
-                          <Share2 className="h-4 w-4" />
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                          <MoreHorizontal className="h-4 w-4" />
                         </Button>
-                      )}
-                    </div>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuItem onClick={() => handleRenameClick(item)}>
+                          <Edit3 className="h-4 w-4 mr-2" />
+                          Rename
+                        </DropdownMenuItem>
+                        {item.type === "file" && (
+                          <><DropdownMenuItem onClick={() => handleShareClick(item)}>
+                            <Share2 className="h-4 w-4 mr-2" />
+                            Share
+                          </DropdownMenuItem><DropdownMenuItem onClick={() => handleDownloadClick(item)}>
+                              <Download className="h-4 w-4 mr-2" />
+                              Download
+                            </DropdownMenuItem></>
+                        )}
+                        
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))

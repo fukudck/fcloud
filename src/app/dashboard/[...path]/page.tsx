@@ -1,4 +1,5 @@
 import { AppSidebar } from "@/components/app-sidebar"
+import BreadcrumbNav from "@/components/breadcrumb-nav"
 import FileManager from "@/components/file-manager"
 import {
   Breadcrumb,
@@ -34,21 +35,7 @@ export default async function Page({ params }: PageProps) {
             orientation="vertical"
             className="mr-2 data-[orientation=vertical]:h-4"
           />
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem className="hidden md:block">
-                <BreadcrumbLink href="#">components</BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator className="hidden md:block" />
-              <BreadcrumbItem className="hidden md:block">
-                <BreadcrumbLink href="#">ui</BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator className="hidden md:block" />
-              <BreadcrumbItem>
-                <BreadcrumbPage>button.tsx</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
+          <BreadcrumbNav folderId={folderId} />
         </header>
         <FileManager currentFolderId={folderId} />
         
