@@ -1,20 +1,14 @@
 import { AppSidebar } from "@/components/app-sidebar"
 import BreadcrumbNav from "@/components/breadcrumb-nav"
 import FileManager from "@/components/file-manager"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb"
 import { Separator } from "@/components/ui/separator"
 import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
+import { auth } from "@/auth"  
+import { redirect } from "next/navigation"
 
 
 
@@ -23,6 +17,13 @@ interface PageProps {
 }
 
 export default async function Page({ params }: PageProps) {
+  const session = await auth()
+  if (!session?.user) {
+    // Chưa đăng nhập thì chuyển về /login
+    redirect("/login")
+  }
+
+  
   const { path } = await params
   const folderId = path?.[0] ?? "0"
   return (

@@ -2,7 +2,17 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+const SPECIAL_FOLDERS: Record<string, string> = {
+  shared: "Shared",
+  images: "Images",
+  documents: "Documents",
+  videos: "Videos",
+};
+
+export async function GET(
+  req: Request,
+  { params }: { params: { id: string } }
+) {
   try {
     const session = await auth();
 
@@ -11,13 +21,27 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     }
 
     let folderId = params.id;
+
+    // Nếu là folder đặc biệt => chỉ trả về breadcrumb ảo
+    if (folderId && SPECIAL_FOLDERS[folderId]) {
+      return NextResponse.json([
+        { id: folderId, name: SPECIAL_FOLDERS[folderId] },
+      ]);
+    }
+
+    // Nếu là "0" => breadcrumb root
+    if (folderId === "0") {
+      return NextResponse.json([{ id: "0", name: "Home" }]);
+    }
+
+    // Folder thường trong DB
     const breadcrumb: { id: string; name: string }[] = [];
 
     while (folderId) {
       const folder = await db.folder.findUnique({
         where: {
           id: folderId,
-          userId: session.user.id, 
+          userId: session.user.id,
         },
         select: { id: true, name: true, parentId: true },
       });
@@ -25,12 +49,17 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       if (!folder) break;
 
       breadcrumb.unshift({ id: folder.id, name: folder.name });
-      folderId = folder.parentId ?? '';
+      folderId = folder.parentId ?? "";
     }
+
+    breadcrumb.unshift({ id: "0", name: "Home" });
 
     return NextResponse.json(breadcrumb);
   } catch (err) {
     console.error(err);
-    return NextResponse.json({ error: "Failed to load breadcrumb" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to load breadcrumb" },
+      { status: 500 }
+    );
   }
 }

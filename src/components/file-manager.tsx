@@ -47,6 +47,8 @@ export const { uploadFiles } = genUploader<typeof ourFileRouter>();
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
+const restrictedFolders = ["shared", "videos", "images", "documents"]
+
 interface FileItem {
   id: string
   name: string
@@ -58,6 +60,7 @@ interface FileItem {
   isShared?: boolean
   lastModified?: string
   parentId?: string | null
+  url?: string | null
 }
 
 
@@ -97,6 +100,7 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
   const [sortField, setSortField] = useState<SortField>("name")
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
   const [filesToUpload, setFilesToUpload] = useState<File[]>([])
+  const [isUploading, setIsUploading] = useState(false);
 
   // useEffect(() => {
   //   const timer = setTimeout(() => {
@@ -145,7 +149,7 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
 
   const renderPreviewContent = () => {
     if (!previewFile || !previewFile.mimeType) return null
-
+  
     if (previewLoading) {
       return (
         <div className="flex items-center justify-center p-12 bg-muted/20 rounded-lg">
@@ -156,36 +160,35 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
         </div>
       )
     }
-
+  
     if (canPreviewInBrowser(previewFile.mimeType)) {
+      // 🖼️ Preview ảnh
       if (previewFile.mimeType.startsWith("image/")) {
         return (
           <div className="flex items-center justify-center p-8 bg-muted/20 rounded-lg">
             <img
-              src={`/abstract-geometric-shapes.png?key=uq9sj&height=400&width=600&query=${previewFile.name}`}
+              src={previewFile.url ?? ""}
               alt={previewFile.name}
               className="max-w-full max-h-96 object-contain rounded-lg shadow-lg"
             />
           </div>
         )
       }
-
+  
+      // 📄 Preview PDF (nhúng trực tiếp)
       if (previewFile.mimeType === "application/pdf") {
         return (
-          <div className="flex flex-col items-center justify-center p-8 bg-muted/20 rounded-lg space-y-4">
-            <div className="w-16 h-16 bg-red-100 rounded-lg flex items-center justify-center">
-              <FileText className="h-8 w-8 text-red-600" />
-            </div>
-            <div className="text-center space-y-2">
-              <p className="font-medium">PDF Document</p>
-              <p className="text-sm text-muted-foreground">
-                This PDF can be viewed in your browser. Click download to open it.
-              </p>
-            </div>
+          <div className="flex items-center justify-center p-8 bg-muted/20 rounded-lg">
+            <iframe
+              src={previewFile.url ?? ""}
+              title={previewFile.name}
+              className="w-full h-[600px] rounded-lg shadow-lg"
+            />
           </div>
         )
       }
-
+  
+      // 📜 Preview text / code
       if (
         previewFile.mimeType.startsWith("text/") ||
         previewFile.mimeType === "application/json" ||
@@ -195,20 +198,17 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
       ) {
         return (
           <div className="bg-muted/20 rounded-lg p-4">
-            <div className="bg-background border rounded-md p-4 font-mono text-sm max-h-96 overflow-auto">
-              <div className="text-muted-foreground">
-                {previewFile.mimeType.includes("javascript") && "// JavaScript file content would appear here"}
-                {previewFile.mimeType.includes("css") && "/* CSS file content would appear here */"}
-                {previewFile.mimeType.includes("html") && "<!-- HTML file content would appear here -->"}
-                {previewFile.mimeType.startsWith("text/") && "Text file content would appear here..."}
-                {previewFile.mimeType === "application/json" && '{\n  "example": "JSON content would appear here"\n}'}
-              </div>
-            </div>
+            <iframe
+              src={previewFile.url ?? ""}
+              title={previewFile.name}
+              className="w-full h-96 bg-background border rounded-md p-4 font-mono text-sm"
+            />
           </div>
         )
       }
     }
-
+  
+    // ❌ Không preview được
     return (
       <div className="flex flex-col items-center justify-center p-8 bg-muted/20 rounded-lg space-y-4">
         <div className="w-16 h-16 bg-muted rounded-lg flex items-center justify-center">
@@ -223,6 +223,7 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
       </div>
     )
   }
+  
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
@@ -258,6 +259,7 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
     if (filesToUpload.length === 0) return;
   
     try {
+      setIsUploading(true);
       const uploaded = await uploadFiles("fileUploader", {
         files: filesToUpload,
         input: { folderId: currentFolderId ?? undefined },
@@ -271,6 +273,8 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
       mutate(`/api/files?folderId=${currentFolderId}`);
     } catch (err: any) {
       console.error("Upload failed:", err);
+    } finally {
+      setIsUploading(false); 
     }
   };
   
@@ -511,9 +515,22 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
   };
   
 
-  const handleDownloadClick = (file: FileItem) => {
-    console.log("Downloading file:", file.name)
-  }
+  const handleDownloadClick = async (file: FileItem) => {
+    console.log("Downloading file:", file.name);
+  
+    const res = await fetch(`/api/download/${file.id}`);
+    const blob = await res.blob();
+  
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = file.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  };
+  
 
 
   if (isLoading) {
@@ -538,6 +555,7 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
   return (
     <div className="flex-1 p-6">
       <div className="flex items-center justify-between mb-6">
+      {currentFolderId && !restrictedFolders.includes(currentFolderId) && (
         <div className="flex items-center gap-2">
           <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
             <DialogTrigger asChild>
@@ -634,14 +652,28 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
                     setUploadDialogOpen(false)
                     setFilesToUpload([])
                   }}
+                  disabled={isUploading} // không cho cancel khi đang upload
                 >
                   Cancel
                 </Button>
-                <Button onClick={handleUploadConfirm} disabled={filesToUpload.length === 0} className="min-w-24">
-                  <Upload className="h-4 w-4 mr-2" />
-                  Upload {filesToUpload.length > 0 && `(${filesToUpload.length})`}
+                <Button
+                  onClick={handleUploadConfirm}
+                  disabled={filesToUpload.length === 0 || isUploading}
+                  className="min-w-24"
+                >
+                  {isUploading ? (
+                    <>
+                      <Upload className="h-4 w-4 mr-2" /> Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4 mr-2" /> 
+                      Upload {filesToUpload.length > 0 && `(${filesToUpload.length})`}
+                    </>
+                  )}
                 </Button>
               </DialogFooter>
+
             </DialogContent>
           </Dialog>
 
@@ -673,6 +705,7 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
             </DialogContent>
           </Dialog>
         </div>
+        )}
 
         {selectedFiles.length > 0 && (
           <Button variant="destructive" onClick={handleDeleteSelected}>
@@ -762,7 +795,7 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
               Close
             </Button>
             {previewFile && (
-              <Button>
+              <Button onClick={() => handleDownloadClick(previewFile)}>
                 <Download className="h-4 w-4 mr-2" />
                 Download
               </Button>

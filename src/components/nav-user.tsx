@@ -1,21 +1,9 @@
 "use client"
 
-import {
-  BadgeCheck,
-  Bell,
-  ChevronsUpDown,
-  CreditCard,
-  HardDrive,
-  LogOut,
-  Moon,
-  Sparkles,
-  Sun,
-  User,
-  Lock,
-  Mail,
-} from "lucide-react"
+import { BadgeCheck, ChevronsUpDown, HardDrive, LogOut, Moon, Sun, User, Lock, Mail } from "lucide-react"
 import { useTheme } from "next-themes"
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useUser } from "@/contexts/user-context"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -41,49 +29,79 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { signOut } from "next-auth/react";
 
-export function NavUser({
-  user,
-}: {
-  user: {
-    name: string
-    email: string
-    avatar: string
-  }
-}) {
+export function NavUser() {
+  const { user, isLoading, updateUser } = useUser()
   const { isMobile } = useSidebar()
   const { theme, setTheme } = useTheme()
   const [isAccountDialogOpen, setIsAccountDialogOpen] = useState(false)
   const [formData, setFormData] = useState({
-    name: user.name,
-    email: user.email,
+    name: user?.name || "",
+    email: user?.email || "",
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
   })
 
+  useEffect(() => {
+    if (user) {
+      setFormData((prev) => ({
+        ...prev,
+        name: user.name,
+        email: user.email,
+      }))
+    }
+  }, [user])
+
   const storageInfo = {
-    used: 2.4, // GB
-    total: 15, // GB
-    percentage: (2.4 / 15) * 100,
+    used: user?.usedSpace || 0,
+    total: user?.totalQuota || 15,
+    percentage: user ? (user.usedSpace / user.totalQuota) * 100 : 0,
   }
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
-  const handleSaveChanges = () => {
-    // Here you would typically make an API call to update user information
+  const handleSaveChanges = async () => {
+    if (user) {
+      updateUser({
+        name: formData.name,
+        email: formData.email,
+      })
+      const res = await fetch("/api/user", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(formData), })
+    }
     console.log("Saving changes:", formData)
     setIsAccountDialogOpen(false)
-    // Reset password fields after saving
     setFormData((prev) => ({
       ...prev,
       currentPassword: "",
       newPassword: "",
       confirmPassword: "",
     }))
+  }
+
+  if (isLoading || !user) {
+    return (
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <div className="flex items-center gap-2 mt-2 mb-2 p-2 rounded-md animate-pulse">
+            <div className="h-4 w-4 bg-muted rounded"></div>
+            <div className="flex-1 space-y-1">
+              <div className="h-3 bg-muted rounded w-20"></div>
+              <div className="h-1.5 bg-muted rounded"></div>
+            </div>
+          </div>
+          <SidebarMenuButton size="lg" className="h-auto py-3" disabled>
+            <div className="h-8 w-8 bg-muted rounded-lg"></div>
+            <div className="grid flex-1 gap-1">
+              <div className="h-4 bg-muted rounded w-24"></div>
+              <div className="h-3 bg-muted rounded w-32"></div>
+            </div>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    )
   }
 
   return (
@@ -109,7 +127,7 @@ export function NavUser({
                 className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground h-auto py-3"
               >
                 <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.name} />
+                  <AvatarImage alt={user.name} />
                   <AvatarFallback className="rounded-lg">CN</AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
@@ -129,7 +147,7 @@ export function NavUser({
               <DropdownMenuLabel className="p-0 font-normal">
                 <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                   <Avatar className="h-8 w-8 rounded-lg">
-                    <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.name} />
+                    <AvatarImage alt={user.name} />
                     <AvatarFallback className="rounded-lg">CN</AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight">
@@ -150,7 +168,7 @@ export function NavUser({
                 </DropdownMenuItem>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={async () => await signOut({ redirectTo: "/login" })}>
+              <DropdownMenuItem>
                 <LogOut />
                 Log out
               </DropdownMenuItem>
@@ -195,6 +213,7 @@ export function NavUser({
                     <Input
                       id="email"
                       type="email"
+                      disabled
                       value={formData.email}
                       onChange={(e) => handleInputChange("email", e.target.value)}
                       placeholder="Enter your email"
@@ -208,7 +227,7 @@ export function NavUser({
             <Separator />
 
             {/* Password Section */}
-            <div className="space-y-4">
+            {/* <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <Lock className="h-4 w-4 text-muted-foreground" />
                 <h3 className="text-sm font-medium">Change Password</h3>
@@ -248,7 +267,7 @@ export function NavUser({
                   />
                 </div>
               </div>
-            </div>
+            </div> */}
           </div>
 
           <DialogFooter>

@@ -45,7 +45,7 @@ export async function PATCH(
 
     return NextResponse.json(updatedItem);
   } catch (err) {
-    console.error("❌ Error updating item:", err);
+    console.error("Error updating item:", err);
     return NextResponse.json({ error: "Failed to update item" }, { status: 500 });
   }
 }
