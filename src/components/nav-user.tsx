@@ -29,9 +29,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
+import { signOut } from "next-auth/react"
 
 export function NavUser() {
-  const { user, isLoading, updateUser } = useUser()
+  const { user, isLoading, updateUser, clearUser, refreshUser } = useUser()
   const { isMobile } = useSidebar()
   const { theme, setTheme } = useTheme()
   const [isAccountDialogOpen, setIsAccountDialogOpen] = useState(false)
@@ -50,6 +51,8 @@ export function NavUser() {
         name: user.name,
         email: user.email,
       }))
+    } else {
+      refreshUser()
     }
   }, [user])
 
@@ -62,6 +65,7 @@ export function NavUser() {
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
+  
 
   const handleSaveChanges = async () => {
     if (user) {
@@ -103,6 +107,7 @@ export function NavUser() {
       </SidebarMenu>
     )
   }
+
 
   return (
     <>
@@ -168,7 +173,7 @@ export function NavUser() {
                 </DropdownMenuItem>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={async () => {clearUser(); await signOut({ redirectTo: "/login" })}}>
                 <LogOut />
                 Log out
               </DropdownMenuItem>

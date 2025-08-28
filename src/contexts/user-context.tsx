@@ -17,6 +17,7 @@ interface UserContextType {
   error: string | null
   refreshUser: () => Promise<void>
   updateUser: (updates: Partial<User>) => void
+  clearUser: () => Promise<void>
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined)
@@ -39,13 +40,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
         const cacheTimestamp = localStorage.getItem("user-data-timestamp")
 
         const isCacheValid =
-          cacheTimestamp && Date.now() - Number.parseInt(cacheTimestamp) < 5 * 60 * 1000
+          cacheTimestamp && Date.now() - Number.parseInt(cacheTimestamp) < 1 * 1000
 
         if (cachedUser && isCacheValid) {
           setUser(JSON.parse(cachedUser))
           setIsLoading(false)
           return
-        }
+        } 
+        
 
         const userData = await fetchUserData()
         setUser(userData)
@@ -84,9 +86,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("user-data", JSON.stringify(updatedUser))
     localStorage.setItem("user-data-timestamp", Date.now().toString())
   }
+  const clearUser = async () => {
+    setUser(null)
+    localStorage.removeItem("user-data")
+    localStorage.removeItem("user-data-timestamp")
+  }
 
   return (
-    <UserContext.Provider value={{ user, isLoading, error, refreshUser, updateUser }}>
+    <UserContext.Provider value={{ user, isLoading, error, refreshUser, updateUser, clearUser }}>
       {children}
     </UserContext.Provider>
   )
@@ -99,3 +106,5 @@ export function useUser() {
   }
   return context
 }
+
+

@@ -10,6 +10,7 @@ import { redirect } from "next/navigation"
 import { AuthError } from "next-auth"
 import { AlertCircleIcon, CheckCircle2Icon, PopcornIcon } from "lucide-react"
 
+
 import {
   Alert,
   AlertDescription,
@@ -25,6 +26,8 @@ export function LoginForm({
   async function handleLogin(formData: FormData) {
     "use server"
     try {
+      
+
       // Có thể truyền trực tiếp FormData:
       await signIn("credentials", formData)
       // hoặc tách ra:
