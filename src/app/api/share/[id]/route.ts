@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
 
-export async function GET(
-  req: Request,
-  { params }: { params: { id: string } }
-) {
+export async function GET(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const file = await db.file.findUnique({
     where: { id: params.id },
     select: {

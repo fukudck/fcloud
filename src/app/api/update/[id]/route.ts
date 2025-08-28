@@ -2,10 +2,8 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
 
-export async function PATCH(
-  req: Request,
-  { params }: { params: { id: string } }
-) {
+export async function PATCH(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const session = await auth();
     if (!session?.user?.id) {

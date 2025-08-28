@@ -3,11 +3,12 @@ import { redirect } from "next/navigation"
 import { auth } from "@/auth"
 
 
-export default async function Page({
-  searchParams,
-}: {
-  searchParams: { error?: string }
-}) {
+export default async function Page(
+  props: {
+    searchParams: Promise<{ error?: string }>
+  }
+) {
+  const searchParams = await props.searchParams;
 
   const session = await auth()
   if (session?.user) {
