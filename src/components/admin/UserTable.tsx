@@ -155,12 +155,6 @@ export default function UserTable({ data }: UserTableProps) {
             Manage your system users efficiently
           </p>
         </div>
-        <Link
-          href="/admin/users/create"
-          className="bg-gradient-to-r from-primary-100 to-primary-200 text-white px-4 py-2.5 rounded-lg hover:from-primary-200 hover:to-primary-300 transition-all duration-200 flex items-center shadow-lg shadow-primary-100/20"
-        >
-          <span>Add New User</span>
-        </Link>
       </div>
 
       <div className="p-6">
