@@ -28,7 +28,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
 
   const fetchUserData = async (): Promise<User> => {
-    const res = await fetch("/api/user")
+    const res = await fetch('/api/user')
     if (!res.ok) throw new Error("Failed to fetch user")
     return res.json()
   }

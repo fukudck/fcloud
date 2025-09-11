@@ -15,7 +15,7 @@ export async function PUT(req: Request, props: { params: Promise<{ id: string }>
 
     const updatedFile = await db.file.updateMany({
       where: { 
-        id: params.id, 
+        id: params.id,
         userId: session.user.id, // kiểm tra file có thuộc user không
       },
       data: { shareable },

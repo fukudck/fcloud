@@ -1,6 +1,7 @@
 import { LoginForm } from "@/components/login-form"
 import { redirect } from "next/navigation"
 import { auth } from "@/auth"
+import { cookies } from "next/headers";
 
 
 export default async function Page(
@@ -9,11 +10,22 @@ export default async function Page(
   }
 ) {
   const searchParams = await props.searchParams;
-
+  const cookieStore = cookies()
   const session = await auth()
+  
   if (session?.user) {
-    // Nếu đã đăng nhập → redirect về home (hoặc dashboard)
+    const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/user`, {
+      headers: {
+        Cookie: (await cookieStore).toString(),
+      },
+      cache: "no-store",
+    })
+    const user = await res.json()
+    if(user?.role === "ADMIN") {
+      redirect("/admin")
+    } else {
     redirect("/")
+    }
   }
 
   return (
