@@ -1,6 +1,8 @@
-  import * as React from "react"
+"use client"
+ 
+ import * as React from "react"
   import Link from "next/link"
-  import { Clock, Share2, Tag } from "lucide-react"
+  import { Clock, Share2, Tag, Users } from "lucide-react"
 
   import {
     Sidebar,
@@ -16,6 +18,7 @@
     SidebarRail,
   } from "@/components/ui/sidebar"
   import { NavUser } from "@/components/nav-user"
+import { useUser } from "@/contexts/user-context"
 
   // Sample data with href
   const data = {
@@ -59,6 +62,7 @@
   }
 
   export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+    const { user, isLoading} = useUser()
     return (
       <Sidebar {...props}>
         {/* Quick Access */}
@@ -100,6 +104,25 @@
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
+
+        {/* User Management */}
+        {user?.role === "ADMIN" && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Admin</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <Link href="/admin" className="flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      User Management
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         <SidebarRail />
         <SidebarFooter>

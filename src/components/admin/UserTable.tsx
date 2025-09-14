@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Edit,
   Trash2,
@@ -163,22 +164,19 @@ export default function UserTable({ data }: UserTableProps) {
           <div className="bg-dark-300 p-4 rounded-lg border border-dark-400">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm text-gray-400 mb-1">Total Users</div>
+                <div className="text-sm  mb-1">Total Users</div>
                 <div className="text-2xl font-bold">{users.length}</div>
               </div>
               <div className="p-3 rounded-full bg-blue-500/20">
                 <HardDrive size={20} className="text-blue-400" />
               </div>
             </div>
-            <div className="text-xs text-green-400 mt-2">
-              +5% from last month
-            </div>
           </div>
 
           <div className="bg-dark-300 p-4 rounded-lg border border-dark-400">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm text-gray-400 mb-1">Admin Users</div>
+                <div className="text-sm  mb-1">Admin Users</div>
                 <div className="text-2xl font-bold">
                   {users.filter((user) => user.role === Role.ADMIN).length}
                 </div>
@@ -187,13 +185,12 @@ export default function UserTable({ data }: UserTableProps) {
                 <HardDrive size={20} className="text-purple-400" />
               </div>
             </div>
-            <div className="text-xs text-gray-400 mt-2">No change</div>
           </div>
 
           <div className="bg-dark-300 p-4 rounded-lg border border-dark-400">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm text-gray-400 mb-1">
+                <div className="text-sm mb-1">
                   Total Storage Used
                 </div>
                 <div className="text-2xl font-bold">
@@ -206,15 +203,12 @@ export default function UserTable({ data }: UserTableProps) {
                 <HardDrive size={20} className="text-green-400" />
               </div>
             </div>
-            <div className="text-xs text-green-400 mt-2">
-              +12% from last month
-            </div>
           </div>
 
           <div className="bg-dark-300 p-4 rounded-lg border border-dark-400">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm text-gray-400 mb-1">Average Usage</div>
+                <div className="text-sm  mb-1">Average Usage</div>
                 <div className="text-2xl font-bold">
                   {Math.round(
                     users.reduce(
@@ -234,7 +228,7 @@ export default function UserTable({ data }: UserTableProps) {
                 <HardDrive size={20} className="text-cyan-400" />
               </div>
             </div>
-            <div className="text-xs text-gray-400 mt-2">Across all users</div>
+            <div className="text-xs  mt-2">Across all users</div>
           </div>
         </div>
 
@@ -243,25 +237,27 @@ export default function UserTable({ data }: UserTableProps) {
           <div className="p-4 flex items-center justify-between border-b border-dark-400">
             <h3 className="font-medium">All Users</h3>
             <div className="flex items-center space-x-2">
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                className="bg-dark-400 border border-dark-500 text-gray-300 text-sm rounded-lg block p-2"
-              >
-                <option value="all">All roles</option>
-                <option value="ADMIN">ADMIN</option>
-                <option value="USER">USER</option>
-              </select>
+            <Select value={role} onValueChange={(value) => setRole(value)}>
+              <SelectTrigger className="w-[180px] bg-dark-400 border ">
+                <SelectValue placeholder="All roles" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All roles</SelectItem>
+                <SelectItem value="ADMIN">ADMIN</SelectItem>
+                <SelectItem value="USER">USER</SelectItem>
+              </SelectContent>
+            </Select>
 
-              <select
-                value={sort}
-                onChange={(e) => setSort(e.target.value)}
-                className="bg-dark-400 border border-dark-500 text-gray-300 text-sm rounded-lg block p-2"
-              >
-                <option value="newest">Newest</option>
-                <option value="oldest">Oldest</option>
-                <option value="usedSpace">Storage usage</option>
-              </select>
+            <Select value={sort} onValueChange={(value) => setSort(value)}>
+              <SelectTrigger className="w-[200px] bg-dark-400 border ">
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="newest">Newest</SelectItem>
+                <SelectItem value="oldest">Oldest</SelectItem>
+                <SelectItem value="usedSpace">Storage usage</SelectItem>
+              </SelectContent>
+            </Select>
 
               <div className="relative">
                 <input
@@ -335,7 +331,7 @@ export default function UserTable({ data }: UserTableProps) {
                       </td>
                       <td className="p-4">
                         <div className="mb-2">
-                          <div className="flex justify-between text-xs text-gray-400 mb-1">
+                          <div className="flex justify-between text-xs  mb-1">
                             <span>
                               {formatBytes(user.usedSpace)} of{" "}
                               {formatBytes(user.totalQuota)}
@@ -371,15 +367,9 @@ export default function UserTable({ data }: UserTableProps) {
                         <div className="text-sm">
                           {new Date(user.createdAt).toLocaleDateString("vi-VN")}
                         </div>
-                        <div className="text-xs text-gray-500">
-                          {new Date(user.createdAt).toLocaleDateString("vi-VN")}
-                        </div>
                       </td>
                       <td className="p-4">
                         <div className="text-sm">
-                          {new Date(user.updatedAt).toLocaleDateString("vi-VN")}
-                        </div>
-                        <div className="text-xs text-gray-500">
                           {new Date(user.updatedAt).toLocaleDateString("vi-VN")}
                         </div>
                       </td>
@@ -437,7 +427,7 @@ export default function UserTable({ data }: UserTableProps) {
           </Dialog>
 
           <div className="p-4 border-t border-dark-400 flex items-center justify-between">
-            <div className="text-sm text-gray-400">
+            <div className="text-sm ">
               Showing {start} to {end} of {data.totalUser} results
             </div>
             <div className="flex space-x-2">

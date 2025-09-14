@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
     // Lấy query param
   const { searchParams } = new URL(req.url)
-  console.log("SR: ", searchParams)
+  // console.log("SR: ", searchParams)
   const page = Number(searchParams.get("page") || 1)
   const limit = Number(searchParams.get("limit") || 10)
   const roleParam = searchParams.get("role") || ""
@@ -78,7 +78,7 @@ const [totalUser, users] = await Promise.all([
   ]);
 
 
-  console.log(users)
+  // console.log(users)
 
   return NextResponse.json({
     totalUser,

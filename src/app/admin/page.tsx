@@ -2,6 +2,12 @@
 
 import UserTable from '@/components/admin/UserTable';
 import { useEffect, useState } from 'react';
+import { AppSidebar } from "@/components/app-sidebar"
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar"
 
 export enum Role {
   ADMIN = 'ADMIN',
@@ -41,8 +47,19 @@ export default function UsersPage() {
 
   console.log(data)
   return (
-    <div className="animate-fade-in">
-      {data ? <UserTable data={data} /> : <p>Loading...</p>}
-    </div>
+
+    <SidebarProvider>
+    <AppSidebar />
+    <SidebarInset>
+      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+          <SidebarTrigger className="-ml-1" />
+        </header>
+      <div className="animate-fade-in">
+        {data ? <UserTable data={data} /> : <p>Loading...</p>}
+      </div>
+        
+    </SidebarInset>
+  </SidebarProvider>
+
   );
 }
