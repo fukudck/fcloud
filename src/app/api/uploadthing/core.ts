@@ -8,7 +8,7 @@ const f = createUploadthing();
 
 export const ourFileRouter = {
   fileUploader: f({
-    blob: { maxFileSize: "16MB", maxFileCount: 1 },
+    blob: { maxFileSize: "16MB", maxFileCount: 10 },
   })
     .input(z.object({ folderId: z.string().optional() }))
     .middleware(async ({ input }) => {
