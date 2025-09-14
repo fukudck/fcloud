@@ -11,12 +11,18 @@ enum Role {
   ADMIN
   USER
 }
+
+enum ItemStatus {
+  NORMAL   // bình thường
+  TRASH    // đã cho vào thùng rác
+}
+
 model User {
   id          String   @id @default(cuid())
   name        String   @default("User")
   email       String   @unique
   password    String
-  role        Role     @default(USER)   // Thêm role ở đây
+  role        Role     @default(USER)
   totalQuota  Int      @default(500000000) // bytes, 500MB
   usedSpace   Int      @default(0)
   files       File[]
@@ -34,6 +40,10 @@ model Folder {
   parentId    String?
   children    Folder[] @relation("FolderHierarchy")
   files       File[]
+
+  status      ItemStatus @default(NORMAL)
+  deletedAt   DateTime?  
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -48,6 +58,10 @@ model File {
   userId      String
   folder      Folder?  @relation(fields: [folderId], references: [id], onDelete: Cascade)
   folderId    String?
+
+  status      ItemStatus @default(NORMAL)
+  deletedAt   DateTime?  // null = chưa xóa
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   shareable   Boolean  @default(false)

@@ -27,11 +27,14 @@ import {
   Loader2,
   MoreHorizontal,
   Edit3,
+  FolderOpen,
+  ArrowLeft,
+  ChevronRight,
 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -47,7 +50,7 @@ export const { uploadFiles } = genUploader<typeof ourFileRouter>();
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
-const restrictedFolders = ["shared", "videos", "images", "documents"]
+const restrictedFolders = ["shared", "videos", "images", "documents", "trash"]
 
 interface FileItem {
   id: string
@@ -101,6 +104,12 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
   const [filesToUpload, setFilesToUpload] = useState<File[]>([])
   const [isUploading, setIsUploading] = useState(false);
+  const [showMoveDialog, setShowMoveDialog] = useState(false)
+  const [currentMoveFolder, setCurrentMoveFolder] = useState<string | null>(null)
+  const [moveFolderPath, setMoveFolderPath] = useState<string[]>([])
+  const [availableFolders, setAvailableFolders] = useState<FileItem[]>([]);
+  const [loadingFolders, setLoadingFolders] = useState(false);
+
 
   // useEffect(() => {
   //   const timer = setTimeout(() => {
@@ -108,6 +117,11 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
   //   }, 1500)
   //   return () => clearTimeout(timer)
   // }, [])
+
+  useEffect(() => {
+    fetchFolders(currentMoveFolder);
+  }, [currentMoveFolder]);
+  
 
   const getMimeTypeDisplay = (mimeType?: string) => {
     if (!mimeType) return ""
@@ -530,6 +544,170 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
     a.remove();
     window.URL.revokeObjectURL(url);
   };
+
+  const handleBulkDownload = async () => {
+    console.log(
+      "Downloading selected files:",
+      selectedFiles.map((file) => file.name),
+    );
+  
+    if (selectedFiles.length === 0) return;
+  
+    try {
+      const body = {
+        fileIds: selectedFiles.filter(f => f.type === "file").map(f => f.id),
+        folderIds: selectedFiles.filter(f => f.type === "folder").map(f => f.id),
+      };
+  
+      const res = await fetch("/api/download/bulk", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+  
+      if (!res.ok) {
+        console.error("Failed to bulk download:", await res.text());
+        return;
+      }
+  
+      // Nếu API fallback về route download 1 file, response sẽ là chính file đó
+      const blob = await res.blob();
+  
+      // Nếu là nhiều file -> blob là zip, nếu 1 file -> blob là chính file gốc
+      const contentDisposition = res.headers.get("Content-Disposition");
+      let filename = "bulk-download.zip";
+  
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="(.+)"/);
+        if (match?.[1]) filename = decodeURIComponent(match[1]);
+      }
+  
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Bulk download error:", err);
+    }
+  };
+
+
+  
+
+  const handleBulkCopy = async () => {
+    try {
+      const res = await fetch("/api/copy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          itemIds: selectedFiles.map((f) => f.id),
+          targetFolderId: currentFolderId ?? null,
+        }),
+      });
+  
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to copy");
+  
+      console.log("Copied items:", data);
+      setSelectedFiles([]);
+      mutate(`/api/files?folderId=${currentFolderId}`);
+    } catch (err) {
+      console.error("Error copying:", err);
+    }
+  };
+  
+  
+
+  const fetchFolders = async (parentId: string | null) => {
+    setLoadingFolders(true);
+    try {
+      const res = await fetch(`/api/folders?parentId=${parentId ?? "0"}`);
+      if (!res.ok) {
+        console.error("Failed to fetch folders");
+        setAvailableFolders([]);
+        return;
+      }
+      const data = await res.json();
+      // mapping về FileItem nếu cần
+      setAvailableFolders(
+        data.map((f: any) => ({
+          id: f.id,
+          name: f.name,
+          parentId: f.parentId,
+          type: "folder", // thêm type để dễ phân biệt
+        }))
+      );
+    } catch (err) {
+      console.error("Error fetching folders:", err);
+      setAvailableFolders([]);
+    } finally {
+      setLoadingFolders(false);
+    }
+  };
+
+  const handleBulkMove = () => {
+    setShowMoveDialog(true)
+    setCurrentMoveFolder(null)
+    setMoveFolderPath([])
+  }
+
+  const handleMoveToFolder = (folderId: string | null) => {
+    setCurrentMoveFolder(folderId)
+    setMoveFolderPath([])
+    
+  }
+
+  const handleOpenFolder = (folder: FileItem) => {
+    setCurrentMoveFolder(folder.id)
+    setMoveFolderPath([...moveFolderPath, folder.name])
+  }
+
+
+  const confirmMove = async () => {
+    if (selectedFiles.length === 0) return;
+  
+    try {
+      const res = await fetch("/api/move", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          itemIds: selectedFiles.map((f) => f.id),
+          targetFolderId: currentMoveFolder,
+        }),
+      });
+  
+      if (!res.ok) throw new Error("Move failed");
+      const data = await res.json();
+      console.log("Move result:", data);
+  
+      // Sau khi move xong, reset state
+      setShowMoveDialog(false);
+      setSelectedFiles([]);
+      setCurrentMoveFolder(null);
+      setMoveFolderPath([]);
+  
+      mutate(`/api/files?folderId=${currentFolderId}`);
+    } catch (err) {
+      console.error("Error:", err);
+    }
+  };
+  
+
+  const getAvailableFolders = () => {
+    return availableFolders.filter(
+      (item) =>
+        !selectedFiles.some((selected) => selected.id === item.id) // tránh move folder vào chính nó
+    );
+  };
+  
+  
+
   
 
 
@@ -708,10 +886,24 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
         )}
 
         {selectedFiles.length > 0 && (
-          <Button variant="destructive" onClick={handleDeleteSelected}>
-            <Trash2 className="h-4 w-4 mr-2" />
-            Delete ({selectedFiles.length})
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={handleBulkCopy}>
+              <Copy className="h-4 w-4 mr-2" />
+              Copy ({selectedFiles.length})
+            </Button>
+            <Button variant="outline" onClick={handleBulkMove}>
+              <FolderOpen className="h-4 w-4 mr-2" />
+              Move ({selectedFiles.length})
+            </Button>
+            <Button variant="outline" onClick={handleBulkDownload}>
+              <Download className="h-4 w-4 mr-2" />
+              Download ({selectedFiles.length})
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteSelected}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete ({selectedFiles.length})
+            </Button>
+          </div>
         )}
       </div>
 
@@ -926,6 +1118,79 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
             <Button onClick={handleRenameConfirm} disabled={!newFileName.trim()}>
               Rename
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showMoveDialog} onOpenChange={setShowMoveDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              Move {selectedFiles.length} item{selectedFiles.length > 1 ? "s" : ""}
+            </DialogTitle>
+            <DialogDescription>Choose where to move the selected items</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Current path display */}
+            <div className="text-sm text-muted-foreground">
+              Moving to:{" "}
+              <span className="font-medium">
+                {moveFolderPath.length === 0 ? "Root" : moveFolderPath.join(" / ")}
+              </span>
+            </div>
+
+
+            {/* Root folder option */}
+            {currentMoveFolder !== null && (
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setCurrentMoveFolder(null)
+                  setMoveFolderPath([])
+                }}
+                className="w-full justify-start"
+              >
+                <Folder className="h-4 w-4 mr-2" />
+                Back to Root
+              </Button>
+            )}
+
+            {/* Available folders */}
+            <div className="max-h-60 overflow-y-auto space-y-1">
+              {loadingFolders ? (
+                <div className="text-center py-8 text-muted-foreground">Loading...</div>
+              ) : getAvailableFolders().length > 0 ? (
+                getAvailableFolders().map((folder) => (
+                  <div
+                    key={folder.id}
+                    className="flex items-center justify-between p-2 rounded-lg border"
+                  >
+                    <div className="flex items-center">
+                      <Folder className="h-4 w-4 mr-2 text-blue-500" />
+                      <span className="text-sm">{folder.name}</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={() => handleOpenFolder(folder)}>
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Folder className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No folders available in this location</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowMoveDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={confirmMove}>Move Here</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -2,7 +2,7 @@
  
  import * as React from "react"
   import Link from "next/link"
-  import { Clock, Share2, Tag, Users } from "lucide-react"
+  import { Clock, Share2, Tag, Trash, Users } from "lucide-react"
 
   import {
     Sidebar,
@@ -53,6 +53,12 @@ import { useUser } from "@/contexts/user-context"
         color: "bg-purple-500",
         href: "/dashboard/videos",
       },
+      // {
+      //   name: "Trash",
+      //   icon: Tag,
+      //   color: "bg-red-500",
+      //   href: "/dashboard/trash",
+      // },
     ],
     user: {
       name: "shadcn",
@@ -104,6 +110,7 @@ import { useUser } from "@/contexts/user-context"
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
+
 
         {/* User Management */}
         {user?.role === "ADMIN" && (

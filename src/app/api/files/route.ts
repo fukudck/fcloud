@@ -1,5 +1,7 @@
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
+import { ItemStatus } from "@prisma/client"
+
 
 function mapFile(file: any) {
   return {
@@ -51,6 +53,11 @@ export async function GET(req: Request) {
   } else if (folderIdParam === "images") {
     const files = await db.file.findMany({
       where: { userId, mimeType: { startsWith: "image/" } },
+    })
+    items = files.map(mapFile)
+  } else if (folderIdParam === "trash") {
+    const files = await db.file.findMany({
+      where: { userId, status: ItemStatus.TRASH },
     })
     items = files.map(mapFile)
   } else if (folderIdParam === "documents") {
