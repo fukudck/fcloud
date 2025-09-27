@@ -142,7 +142,8 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
       mimeType === "application/json" ||
       mimeType.includes("javascript") ||
       mimeType.includes("css") ||
-      mimeType.includes("html")
+      mimeType.includes("html") ||
+      mimeType.includes("video") 
     )
   }
 
@@ -177,12 +178,23 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
   
     if (canPreviewInBrowser(previewFile.mimeType)) {
       // 🖼️ Preview ảnh
-      if (previewFile.mimeType.startsWith("image/")) {
+      if (previewFile.mimeType.startsWith("image/") ) {
         return (
           <div className="flex items-center justify-center p-8 bg-muted/20 rounded-lg">
             <img
               src={previewFile.url ?? ""}
               alt={previewFile.name}
+              className="max-w-full max-h-96 object-contain rounded-lg shadow-lg"
+            />
+          </div>
+        )
+      }
+
+      if (previewFile.mimeType.startsWith("video/") ) {
+        return (
+          <div className="flex items-center justify-center p-8 bg-muted/20 rounded-lg">
+            <video
+              src={previewFile.url ?? ""}
               className="max-w-full max-h-96 object-contain rounded-lg shadow-lg"
             />
           </div>

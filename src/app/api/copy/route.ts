@@ -2,8 +2,22 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
 
-// Helper: copy folder đệ quy
-async function copyFolderRecursive(folderId: string, userId: string, targetParentId: string | null) {
+function generateCopyName(originalName: string): string {
+  const lastDotIndex = originalName.lastIndexOf(".");
+  if (lastDotIndex === -1) {
+    return `${originalName} (copy)`;
+  }
+  const base = originalName.slice(0, lastDotIndex);
+  const ext = originalName.slice(lastDotIndex);
+  return `${base} (copy)${ext}`;
+}
+
+async function copyFolderRecursive(
+  folderId: string,
+  userId: string,
+  targetParentId: string | null,
+  addCopySuffix = false
+) {
   const folder = await db.folder.findUnique({
     where: { id: folderId, userId },
     include: {
@@ -13,20 +27,20 @@ async function copyFolderRecursive(folderId: string, userId: string, targetParen
   });
   if (!folder) return null;
 
-  // Tạo folder mới
+  const newFolderName = addCopySuffix ? `${folder.name} (copy)` : folder.name;
+
   const newFolder = await db.folder.create({
     data: {
-      name: `${folder.name} (copy)`,
+      name: newFolderName,
       userId,
       parentId: targetParentId,
     },
   });
 
-  // Copy files trong folder
   for (const file of folder.files) {
     await db.file.create({
       data: {
-        name: `${file.name} (copy)`,
+        name: file.name,
         size: file.size,
         mimeType: file.mimeType,
         storagePath: file.storagePath,
@@ -36,9 +50,8 @@ async function copyFolderRecursive(folderId: string, userId: string, targetParen
     });
   }
 
-  // Copy các folder con
   for (const child of folder.children) {
-    await copyFolderRecursive(child.id, userId, newFolder.id);
+    await copyFolderRecursive(child.id, userId, newFolder.id, false);
   }
 
   return newFolder;
@@ -57,7 +70,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No items to copy" }, { status: 400 });
     }
 
-    // ✅ chuẩn hóa targetFolderId: root = null
     let destinationFolderId: string | null = null;
     if (targetFolderId && targetFolderId !== "0") {
       const destFolder = await db.folder.findUnique({
@@ -72,32 +84,31 @@ export async function POST(req: Request) {
     const copied: { files: string[]; folders: string[] } = { files: [], folders: [] };
 
     for (const id of itemIds) {
-      // Thử copy file
       const file = await db.file.findUnique({
         where: { id, userId: session.user.id },
       });
       if (file) {
         const newFile = await db.file.create({
           data: {
-            name: `${file.name} (copy)`,
+            name: generateCopyName(file.name), // thêm (copy) cho file gốc
             size: file.size,
             mimeType: file.mimeType,
             storagePath: file.storagePath,
             userId: session.user.id,
-            folderId: destinationFolderId, // null = root
+            folderId: destinationFolderId,
           },
         });
         copied.files.push(newFile.id);
         continue;
       }
 
-      // Thử copy folder
-      const folder = await db.folder.findUnique({
+      const folderExists = await db.folder.findUnique({
         where: { id, userId: session.user.id },
       });
-      if (folder) {
-        const newFolder = await copyFolderRecursive(folder.id, session.user.id, destinationFolderId);
+      if (folderExists) {
+        const newFolder = await copyFolderRecursive(id, session.user.id, destinationFolderId, true);
         if (newFolder) copied.folders.push(newFolder.id);
+        continue;
       }
     }
 

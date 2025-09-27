@@ -46,9 +46,11 @@ export async function POST(req: NextRequest) {
 
     const { fileIds = [], folderIds = [] } = await req.json();
 
-    // Nếu chỉ có 1 file → fallback sang route download cũ
     if (fileIds.length === 1 && folderIds.length === 0) {
-      return NextResponse.redirect(new URL(`/api/download/${fileIds[0]}`, req.url));
+      return NextResponse.redirect(
+        new URL(`/api/download/${fileIds[0]}`, req.url),
+        303
+      );
     }
 
     const zip = new JSZip();
