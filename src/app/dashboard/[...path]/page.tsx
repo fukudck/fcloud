@@ -17,13 +17,13 @@ interface PageProps {
 }
 
 export default async function Page({ params }: PageProps) {
+
+
   const session = await auth()
   if (!session?.user) {
-    // Chưa đăng nhập thì chuyển về /login
     redirect("/login")
   }
 
-  
   const { path } = await params
   const folderId = path?.[0] ?? "0"
   return (

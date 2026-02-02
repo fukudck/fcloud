@@ -3,12 +3,14 @@ import { UploadThingError } from "uploadthing/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
-
+import { UploadFilesUseCase } from "@/modules/drive/usecases/UploadFiles/UploadFilesUseCase";
+import { PrismaFileRepository } from "@/modules/drive/infrastructure/prisma/PrismaFileRepository";
+import { PrismaUserRepository } from "@/modules/user/infrastructure/prisma/PrismaUserRepository";
 const f = createUploadthing();
 
 export const ourFileRouter = {
   fileUploader: f({
-    blob: { maxFileSize: "128MB", maxFileCount: 10 },
+    blob: { maxFileSize: "64MB", maxFileCount: 10 },
   })
     .input(z.object({ folderId: z.string().optional() }))
     .middleware(async ({ input }) => {
@@ -26,34 +28,37 @@ export const ourFileRouter = {
       };
     })
     .onUploadComplete(async ({ metadata, file }) => {
-      const { userId, usedSpace, totalQuota, folderId } = metadata;
+      const usecase = new UploadFilesUseCase(
+        new PrismaFileRepository(),
+        new PrismaUserRepository()
+      )
 
-      if (usedSpace + file.size > totalQuota) {
-        throw new UploadThingError("Storage quota exceeded");
+      try {
+        const savedFiles = await usecase.execute({
+          userId: metadata.userId,
+          folderId:
+            !metadata.folderId || metadata.folderId === "0"
+              ? null
+              : metadata.folderId,
+          files: [{
+            name: file.name,
+            size: file.size,
+            mimeType: file.type,
+            storagePath: file.ufsUrl,
+          }],
+        })
+
+        // ✅ RETURN = SUCCESS
+        return {
+          status: "success",
+        }
+      } catch (err) {
+        console.error(err)
+
+        // ❌ THROW = FAIL
+        throw new UploadThingError("Upload failed")
       }
 
-      const savedFile = await db.file.create({
-        data: {
-          name: file.name,
-          size: file.size,
-          mimeType: file.type,
-          storagePath: file.ufsUrl,
-          userId,
-          folderId: !folderId || folderId === "0" ? null : folderId,
-        },
-      });
-
-      await db.user.update({
-        where: { id: userId },
-        data: { usedSpace: usedSpace + file.size },
-      });
-
-      return {
-        uploadedBy: userId,
-        fileId: savedFile.id,
-        fileUrl: savedFile.storagePath,
-        folderId,
-      };
     }),
 } satisfies FileRouter;
 

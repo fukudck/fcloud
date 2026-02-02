@@ -1,40 +1,37 @@
 import { NextRequest, NextResponse } from "next/server"
-import bcrypt from "bcryptjs"
 import { auth } from "@/auth"
-import { db } from "@/lib/db"
-
-function toGB(bytes: number) {
-  return (bytes / (1024 * 1024 * 1024)).toFixed(2)
+function toGB(bytes: number): string {
+  return (bytes / (1024 * 1024 )).toFixed(2)
 }
+
+// app/api/user/route.ts
+import { PrismaUserRepository } from "@/modules/user/infrastructure/prisma/PrismaUserRepository"
+import { GetCurrentUserUseCase } from "@/modules/user/usecase/GetCurrentUserUseCase"
+import { UpdateUserUseCase } from "@/modules/user/usecase/UpdateUserUseCase"
+
 export async function GET() {
-  const session = await auth();
-  
-  if (!session || !session.user?.email) {
+  const session = await auth()
+
+  if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const user = await db.user.findUnique({
-    where: { email: session.user.email },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      totalQuota: true,
-      usedSpace: true,
-    },
-  })
+  try {
+    const useCase = new GetCurrentUserUseCase(
+      new PrismaUserRepository()
+    )
 
-  if (!user) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 })
-  }
-
-  return NextResponse.json({
+    const user = await useCase.execute(session.user.id)
+    return NextResponse.json({
     ...user,
     totalQuota: toGB(user.totalQuota),
     usedSpace: toGB(user.usedSpace),
   })
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 404 })
+  }
 }
+
 
 export async function PUT(req: NextRequest) {
   const session = await auth()
@@ -42,41 +39,20 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const { name, email, currentPassword, newPassword } = await req.json()
-  const user = await db.user.findUnique({ where: { id: session.user.id } })
-  if (!user) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 })
+  try {
+    const body = await req.json()
+
+    const useCase = new UpdateUserUseCase(
+      new PrismaUserRepository()
+    )
+
+    const result = await useCase.execute(session.user.id, body.name)
+
+    return NextResponse.json(result)
+  } catch (e: any) {
+    return NextResponse.json(
+      { error: e.message ?? "Failed to update user" },
+      { status: 400 }
+    )
   }
-
-//   if (newPassword) {
-//     if (!currentPassword) {
-//       return NextResponse.json({ error: "Current password required" }, { status: 400 })
-//     }
-//     const isValid = await bcrypt.compare(currentPassword, user.password)
-//     if (!isValid) {
-//       return NextResponse.json({ error: "Invalid current password" }, { status: 400 })
-//     }
-//   }
-
-  const updated = await db.user.update({
-    where: { id: user.id },
-    data: {
-      name: name || user.name,
-      email: email || user.email,
-      ...(newPassword ? { password: await bcrypt.hash(newPassword, 10) } : {}),
-    },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      usedSpace: true,
-      totalQuota: true,
-    },
-  })
-
-  return NextResponse.json({
-    ...updated,
-    totalQuota: toGB(updated.totalQuota),
-    usedSpace: toGB(updated.usedSpace),
-  })
 }

@@ -34,7 +34,7 @@ model User {
 model Folder {
   id          String   @id @default(cuid())
   name        String
-  user        User     @relation(fields: [userId], references: [id])
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId      String
   parent      Folder?  @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
   parentId    String?

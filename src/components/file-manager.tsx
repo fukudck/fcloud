@@ -3,6 +3,7 @@ import { useState, useEffect } from "react"
 import type React from "react"
 import { useRouter } from "next/navigation"
 
+import { useUser } from "@/contexts/user-context"
 import {
   Folder,
   File,
@@ -77,9 +78,10 @@ interface FileManagerProps {
 
 export default function FileManager({ currentFolderId }: FileManagerProps) {
   const { data, error, isLoading } = useSWR<FileItem[]>(
-    `/api/files${currentFolderId ? `?folderId=${currentFolderId}` : ""}`,
+    `/api/items${currentFolderId ? `?folderId=${currentFolderId}` : ""}`,
     fetcher
   )
+  const { refreshUser } = useUser()
   
   const mockFiles: FileItem[] = data ?? []
   const router = useRouter()
@@ -296,7 +298,8 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
   
       setFilesToUpload([]);
       setUploadDialogOpen(false);
-      mutate(`/api/files?folderId=${currentFolderId}`);
+      mutate(`/api/items?folderId=${currentFolderId}`);
+      refreshUser()
     } catch (err: any) {
       console.error("Upload failed:", err);
     } finally {
@@ -319,12 +322,12 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
     console.log("Creating folder:", newFolderName);
   
     try {
-      const res = await fetch("/api/folders", {
+      const res = await fetch("/api/items/folder/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: newFolderName,
-          parentId: currentFolderId || null, // 👈 nếu bạn đang trong 1 folder
+          parentId: currentFolderId || null, 
         }),
       });
   
@@ -332,10 +335,9 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
         throw new Error("Failed to create folder");
       }
   
-      const folder = await res.json();
-      console.log("✅ Folder created:", folder);
+      console.log("Folder created:", res.json());
   
-      mutate(`/api/files?folderId=${currentFolderId}`);
+      mutate(`/api/items?folderId=${currentFolderId}`);
   
     } catch (err) {
       console.error("Error creating folder:", err);
@@ -368,23 +370,39 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
 
   const confirmDelete = async () => {
     try {
-      for (const item of selectedFiles) {
-        await fetch(`/api/delete/${item.id}?type=${item.type}`, {
-          method: "DELETE",
-        });
-      }
-  
-      console.log("Deleted items:", selectedFiles);
-  
+      const fileIds = selectedFiles
+        .filter(f => f.type === "file")
+        .map(f => f.id)
 
-      setSelectedFiles([]);
-      setDeleteDialogOpen(false);
-  
-      mutate(`/api/files?folderId=${currentFolderId}`);
-    } catch (error) {
-      console.error("Error deleting:", error);
+      const folderIds = selectedFiles
+        .filter(f => f.type === "folder")
+        .map(f => f.id)
+
+      if (fileIds.length === 0 && folderIds.length === 0) return
+
+      const res = await fetch("/api/items/delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileIds,
+          folderIds,
+        }),
+      })
+
+      if (!res.ok) {
+        throw new Error("Delete failed")
+      }
+
+      setSelectedFiles([])
+      setDeleteDialogOpen(false)
+
+      mutate(`/api/items?folderId=${currentFolderId}`)
+      refreshUser()
+    } catch (err) {
+      console.error("Error deleting:", err)
     }
-  };
+  }
+
   
 
   const getSelectedFileNames = () => {
@@ -481,8 +499,8 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
     }
   
     try {
-      const res = await fetch(`/api/files/${shareFile.id}/share`, {
-        method: "PUT",
+      const res = await fetch(`/api/items/file/${shareFile.id}/share`, {
+        method: "PATCH",
         headers: {
           "Content-Type": "application/json",
         },
@@ -495,7 +513,7 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
       console.log("Updated file:", updatedFile)
   
 
-      mutate(`/api/files?folderId=${currentFolderId}`)
+      mutate(`/api/items?folderId=${currentFolderId}`)
   
       setShareDialogOpen(false)
     } catch (err) {
@@ -514,7 +532,7 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
     if (!renameFile || !newFileName.trim()) return;
   
     try {
-      const res = await fetch(`/api/update/${renameFile.id}`, {
+      const res = await fetch(`/api/items/rename/${renameFile.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -530,7 +548,7 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
       const updated = await res.json();
       console.log("Item renamed:", updated);
   
-      mutate(`/api/files?folderId=${currentFolderId}`)
+      mutate(`/api/items?folderId=${currentFolderId}`)
     } catch (err) {
       console.error("Error renaming item:", err);
     } finally {
@@ -544,7 +562,7 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
   const handleDownloadClick = async (file: FileItem) => {
     console.log("Downloading file:", file.name);
   
-    const res = await fetch(`/api/download/${file.id}`);
+    const res = await fetch(`/api/items/download/${file.id}`);
     const blob = await res.blob();
   
     const url = window.URL.createObjectURL(blob);
@@ -571,7 +589,7 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
         folderIds: selectedFiles.filter(f => f.type === "folder").map(f => f.id),
       };
   
-      const res = await fetch("/api/download/bulk", {
+      const res = await fetch("/api/items/download/bulk", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -614,11 +632,18 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
 
   const handleBulkCopy = async () => {
     try {
-      const res = await fetch("/api/copy", {
+      const fileIds = selectedFiles.flatMap(f =>
+        f.type === "file" ? [f.id] : []
+      )
+      const folderIds = selectedFiles.flatMap(f =>
+        f.type === "folder" ? [f.id] : []
+      )
+      const res = await fetch("/api/items/copy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          itemIds: selectedFiles.map((f) => f.id),
+          fileIds,
+          folderIds,
           targetFolderId: currentFolderId ?? null,
         }),
       });
@@ -628,7 +653,8 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
   
       console.log("Copied items:", data);
       setSelectedFiles([]);
-      mutate(`/api/files?folderId=${currentFolderId}`);
+      mutate(`/api/items?folderId=${currentFolderId}`);
+      refreshUser()
     } catch (err) {
       console.error("Error copying:", err);
     }
@@ -639,7 +665,7 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
   const fetchFolders = async (parentId: string | null) => {
     setLoadingFolders(true);
     try {
-      const res = await fetch(`/api/folders?parentId=${parentId ?? "0"}`);
+      const res = await fetch(`/api/items/folder?parentId=${parentId ?? "0"}`);
       if (!res.ok) {
         console.error("Failed to fetch folders");
         setAvailableFolders([]);
@@ -685,11 +711,20 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
     if (selectedFiles.length === 0) return;
   
     try {
-      const res = await fetch("/api/move", {
+      const fileIds = selectedFiles.flatMap(f =>
+        f.type === "file" ? [f.id] : []
+      )
+      const folderIds = selectedFiles.flatMap(f =>
+        f.type === "folder" ? [f.id] : []
+      )
+
+
+      const res = await fetch("/api/items/move", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          itemIds: selectedFiles.map((f) => f.id),
+          fileIds,
+          folderIds,
           targetFolderId: currentMoveFolder,
         }),
       });
@@ -704,7 +739,7 @@ export default function FileManager({ currentFolderId }: FileManagerProps) {
       setCurrentMoveFolder(null);
       setMoveFolderPath([]);
   
-      mutate(`/api/files?folderId=${currentFolderId}`);
+      mutate(`/api/items?folderId=${currentFolderId}`);
     } catch (err) {
       console.error("Error:", err);
     }

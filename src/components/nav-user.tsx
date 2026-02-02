@@ -119,7 +119,7 @@ export function NavUser() {
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-medium">Storage</span>
                 <span className="text-xs text-muted-foreground">
-                  {storageInfo.used}GB / {storageInfo.total}GB
+                  {storageInfo.used}MB / {storageInfo.total}MB
                 </span>
               </div>
               <Progress value={storageInfo.percentage} className="h-1.5" />

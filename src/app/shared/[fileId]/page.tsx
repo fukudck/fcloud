@@ -107,7 +107,7 @@ export default function SharePage() {
 
   const handleDownload = () => {
     if (!file) return
-    window.location.href = `/api/download/${file.id}`
+    window.location.href = `/api/items/download/${file.id}`
   }
   const renderPreviewContent = () => {
     if (!file) return null
